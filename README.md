@@ -4,6 +4,8 @@ On 21 October 2026 the PHP project released fixes for two critical vulnerabiliti
 
 This repository has a small, read-only shell script, `check-php.sh`, that tells you whether the PHP on a Linux server is fixed, and summarises the log entries worth a look. Below it you'll find how to fix each common setup, and what the script can't tell you.
 
+*Current release: [v1.0.0](https://github.com/g-seller/security-php-incident-26102026/releases/tag/v1.0.0), 22 October 2026. MIT licensed.*
+
 ## Am I affected?
 
 Every PHP version older than these is affected:
@@ -21,14 +23,26 @@ Linux distributions often fix a package **without changing its version number** 
 
 According to the advisory, the risk is highest with **Apache mod_php**, where remote code execution was demonstrated. **PHP-FPM, php-cgi, FrankenPHP and LiteSpeed** are also listed as at risk. The advisory doesn't discuss the CLI or PHP's built-in development server, but they use the same engine, so update them too.
 
+## Requirements
+
+- Linux server (any distribution) with `bash`, `awk`, `gzip` and the usual core tools; all are preinstalled almost everywhere.
+- Root, or `sudo`, for the full check: reading `/var/log` and other users' processes. Without root you still get the version check.
+- Optional: `curl` for `--url`, `docker` for `--docker`, `journalctl` on systemd hosts.
+- No installation and no internet access needed on the server, apart from downloading the script once.
+
 ## Quick start
 
+Download the released version and verify it hasn't been altered:
+
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/g-seller/security-php-incident-26102026/main/check-php.sh
+curl -fsSLO https://raw.githubusercontent.com/g-seller/security-php-incident-26102026/v1.0.0/check-php.sh
+echo "b128f1534cd0d8b75e1b3b8765bb6d51e1319632e1d9c1ea9eb12578281784c1  check-php.sh" | sha256sum -c -
 less check-php.sh            # read it first: never run scripts from the internet unseen
 chmod +x check-php.sh
-sudo ./check-php.sh          # root is needed to read logs and other users' processes
+sudo ./check-php.sh
 ```
+
+`sha256sum -c` must print `check-php.sh: OK`. On macOS, use `shasum -a 256 -c -`. If the server has no internet access, download the script on your machine and copy it over with `scp`.
 
 Options:
 
@@ -43,6 +57,40 @@ Options:
 Exit codes: `0` every PHP found is fixed, `1` something vulnerable was found, `2` nothing could be verified. You can use them in scripts or monitoring.
 
 The script **changes nothing**: it only reads files, runs `php -v`, queries the package manager and, with `--docker`, runs `php -r 'echo PHP_VERSION;'` inside containers.
+
+## Example output
+
+A Debian 12 server with PHP-FPM and Apache mod_php, after updating (the log counts are illustrative):
+
+```text
+== PHP installed on this host
+PASS  /usr/bin/php8.2 (cli): PHP 8.2.35 includes the fix
+PASS  /usr/sbin/php-fpm8.2 (fpm-fcgi): PHP 8.2.35 includes the fix
+PASS  /usr/lib/apache2/modules/libphp8.2.so (apache mod_php, highest risk): PHP 8.2.35 includes the fix
+PASS  No running process uses a replaced PHP binary or module
+
+== Logs since 2026-10-17 (symptoms to review, not proof either way)
+INFO  Read 9 log files plus the systemd journal
+INFO  48211 web requests logged since 2026-10-17
+WARN  PHP worker crashes (segfaults / aborts). Memory-corruption exploits often crash workers while they retry:
+    2026-10-21: 3
+WARN  HTTP 500/502/503/504 responses (also caused by deploys, restarts and app bugs):
+    2026-10-22: 14
+
+Result: every PHP install found includes the fix. Remember to restart long-running PHP processes after updating.
+```
+
+### Reading the result
+
+| Line | Meaning | What to do |
+|---|---|---|
+| `PASS` | This PHP includes the fix. | Nothing. |
+| `FAIL` | This PHP is vulnerable, or a process still runs the old code. | Update (see below), restart, run the script again. |
+| `WARN` | Something in the logs is worth a look. It is **not** proof of an attack. | Compare the dates with your deploys and restarts. Unexplained spikes, especially worker crashes or "out of memory before any script ran" on 17–22 October, deserve a closer look at that day's logs. |
+| `????` | The script couldn't check something (no access, unknown format). | Run as root, or check that part by hand. |
+| `INFO` | Context only. | Nothing. |
+
+In the example above, the 14 errors on 22 October match a deploy that day, and the 3 crashes on 21 October would be worth checking in the PHP-FPM log.
 
 ## What the script checks
 
@@ -132,6 +180,15 @@ See [GHSA-w8hw-w9fx-j79w](https://github.com/php/php-src/security/advisories/GHS
 - CVE-2026-109619, RCE via stale global state: <https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp>
 - CISA alert: <https://www.cisa.gov/news-events/alerts/2026/10/21/critical-vulnerabilities-php-require-immediate-patching>
 
-## Disclaimer
+## Reporting problems and contributing
 
-Provided as is, without warranty. The script is read-only, but you run it on your own responsibility. Corrections and pull requests are welcome.
+- **The script misreports your setup** (a PHP it doesn't find, a wrong FAIL for a fixed vendor build, a log format it doesn't parse): open an issue with your distribution and version, how PHP is installed, and the relevant output lines. Remove host names, IPs and paths you don't want public first.
+- **Pull requests are welcome**, for example more install locations or log formats. Keep the script read-only and dependency-free.
+- **Don't post details of a live compromise** in a public issue. Contact your hosting provider or a security incident response service instead.
+- **Report vulnerabilities in PHP itself** to the PHP project, as described in its [security policy](https://github.com/php/php-src/security/policy), not here.
+
+## License and disclaimer
+
+[MIT License](LICENSE): you may use, copy, modify and redistribute the script and this guide, also commercially, as long as the copyright notice is kept.
+
+Provided **as is, without warranty**. The script is read-only, but you run it at your own risk, and a PASS doesn't guarantee your server is safe. The information reflects the PHP advisory of 21 October 2026. Always check [php.net](https://www.php.net/) for the latest releases.
