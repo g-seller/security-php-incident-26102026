@@ -35,7 +35,7 @@ According to the advisory, the risk is highest with **Apache mod_php**, where re
 Download the released version and verify it hasn't been altered:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/g-seller/security-php-incident-26102026/v1.0.0/check-php.sh
+curl -fsSLO https://raw.githubusercontent.com/g-seller/security-php-incident-26102026/refs/tags/v1.0.0/check-php.sh
 echo "b128f1534cd0d8b75e1b3b8765bb6d51e1319632e1d9c1ea9eb12578281784c1  check-php.sh" | sha256sum -c -
 less check-php.sh            # read it first: never run scripts from the internet unseen
 chmod +x check-php.sh
